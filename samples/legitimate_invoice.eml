@@ -1,0 +1,26 @@
+From: "Acme Corp" <billing@acme.com>
+To: "John Doe" <john.doe@example.com>
+Subject: Your Invoice for July 2026
+Date: Mon, 18 Nov 2026 12:00:00 +0000
+Message-ID: <20261118.001@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Type: text/plain; charset="utf-8"
+
+Dear John,
+
+Please find attached your invoice for July 2026. Thank you for your business.
+
+Best regards,
+Acme Billing Team
+
+--BOUNDARY
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="invoice_July2026.pdf"
+
+JVBERi0xLjQKJcfs... (truncated base64 pdf placeholder)
+
+--BOUNDARY--

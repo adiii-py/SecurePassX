@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHISH-SHIELD | SOC Tier-1 Threat Analyzer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        soc: {
+                            bg: '#0a0e17',
+                            card: '#111827',
+                            border: '#1f293d',
+                            hover: '#1e293b',
+                            accent: '#3b82f6',
+                            danger: '#ef4444',
+                            warning: '#f59e0b',
+                            success: '#10b981'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0a0e17; color: #f1f5f9; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        
+        .pulse-dot {
+            animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .4; transform: scale(1.1); }
+        }
+        
+        @media print {
+            body { background: #fff !important; color: #000 !important; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .bg-soc-card, .bg-gray-800, .bg-gray-900 { background: #fff !important; border: 1px solid #ccc !important; color: #000 !important; }
+            .text-white, .text-gray-100, .text-gray-200, .text-gray-300 { color: #000 !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#0a0e17] text-slate-100 selection:bg-blue-600 selection:text-white">
+
+    <!-- TOP SOC APPARATUS NAVBAR -->
+    <header class="no-print bg-[#0f172a]/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50 px-4 lg:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <!-- Brand & Classification -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-blue-500/20 border border-blue-400/30">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="font-bold text-lg tracking-wide text-white">PHISH-SHIELD</span>
+                        <span class="text-xs bg-blue-500/10 text-blue-400 font-semibold px-2 py-0.5 rounded border border-blue-500/30">SOC TIER-1</span>
+                        <span class="text-xs bg-emerald-500/10 text-emerald-400 font-medium px-2 py-0.5 rounded flex items-center gap-1 border border-emerald-500/30">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span> Online
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400">Automated Phishing & Malicious URL Triage Engine</p>
+                </div>
+            </div>
+
+            <!-- Top Navigation Tabs -->
+            <nav class="flex items-center space-x-1 sm:space-x-2 text-sm font-medium">
+                <button id="nav-tab-triage" onclick="switchMainTab('triage')" class="px-3.5 py-1.5 rounded-md bg-blue-600 text-white shadow-sm flex items-center gap-1.5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Triage Console
+                </button>
+                <button id="nav-tab-history" onclick="switchMainTab('history')" class="px-3.5 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Case History
+                </button>
+                <button id="nav-tab-iocs" onclick="switchMainTab('iocs')" class="px-3.5 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
+                    IOC Blocklist
+                </button>
+                <button id="nav-tab-mitre" onclick="switchMainTab('mitre')" class="px-3.5 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                    MITRE ATT&CK
+                </button>
+                <button id="nav-tab-sop" onclick="switchMainTab('sop')" class="px-3.5 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    SOP Playbook
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- MAIN WRAPPER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
+
+        <!-- ========================================== -->
+        <!-- TAB 1: TRIAGE CONSOLE (URL & EMAIL INTAKE) -->
+        <!-- ========================================== -->
+        <section id="view-triage" class="space-y-8">
+
+            <!-- Intake Switcher Tabs -->
+            <div class="no-print bg-[#111827] border border-slate-800 rounded-xl p-2 flex flex-wrap gap-2 shadow-xl">
+                <button id="intake-mode-url" onclick="switchIntakeMode('url')" class="flex-1 py-3 px-4 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/40 font-semibold text-sm flex items-center justify-center gap-2 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                    Malicious URL Triage Engine
+                </button>
+                <button id="intake-mode-email" onclick="switchIntakeMode('email')" class="flex-1 py-3 px-4 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 font-semibold text-sm flex items-center justify-center gap-2 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Email Header & .eml Phishing Triage
+                </button>
+            </div>
+
+            <!-- INTAKE PANEL: URL ANALYZER -->
+            <div id="panel-url-intake" class="no-print bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 mb-4 border-b border-slate-800 gap-2">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                            URL Lexical & Infrastructure Scanner
+                        </h2>
+                        <p class="text-xs text-slate-400">Examines entropy, punycode/IDN homographs, brand typosquatting, WHOIS age, DNS records, and credential forms</p>
+                    </div>
+                    <!-- Quick Demo Pills -->
+                    <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span class="text-slate-400 text-[11px] font-medium mr-1">Demo Samples:</span>
+                        <button onclick="loadSampleUrl('phish')" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                            ⚡ Lookalike M365 Phish
+                        </button>
+                        <button onclick="loadSampleUrl('punycode')" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                            ⚡ Punycode PayPal
+                        </button>
+                        <button onclick="loadSampleUrl('ip')" class="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                            ⚡ Raw IP Payload (.iso)
+                        </button>
+                        <button onclick="loadSampleUrl('benign')" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                            ⚡ Legitimate Site
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label for="input-target-url" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Target URL to Investigate</label>
+                        <div class="relative flex items-center">
+                            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-mono text-sm">
+                                🔗
+                            </div>
+                            <input id="input-target-url" type="text" placeholder="https://login-micros0ft-security-portal.xyz/verify?session=abc123" 
+                                   class="w-full pl-11 pr-24 py-3.5 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm shadow-inner transition">
+                            <button onclick="clearUrlInput()" class="absolute right-2 px-2.5 py-1 text-xs text-slate-400 hover:text-white rounded bg-slate-800 hover:bg-slate-700 transition">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-4 pt-1">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input id="check-network-inspection" type="checkbox" checked class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-blue-500">
+                            <span class="text-xs text-slate-300">Safe Network Inspection (Redirect chain, SSL Cert, Form Action probes)</span>
+                        </label>
+
+                        <button id="btn-triage-url" onclick="executeUrlTriage()" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition active:scale-95">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>Run URL Triage</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INTAKE PANEL: EMAIL ANALYZER -->
+            <div id="panel-email-intake" class="hidden no-print bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 mb-4 border-b border-slate-800 gap-2">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                            Email Header & .eml Phishing Engine
+                        </h2>
+                        <p class="text-xs text-slate-400">Analyzes RFC 822 headers, SPF/DKIM/DMARC alignment, spoofed sender domains, dangerous attachments, and body URLs</p>
+                    </div>
+                    <!-- Quick Demo Pills for Email -->
+                    <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span class="text-slate-400 text-[11px] font-medium mr-1">Demo Samples:</span>
+                        <button onclick="loadSampleEmail('phish')" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                            ⚡ Phishing .eml (Failed SPF/DMARC + .exe)
+                        </button>
+                        <button onclick="loadSampleEmail('benign')" class="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-md transition flex items-center gap-1">
+                            ⚡ Legitimate .eml (Invoice with PDF)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-toggle: File Upload vs Raw Text Paste -->
+                <div class="flex items-center gap-4 mb-4 text-xs font-semibold">
+                    <button id="email-subtab-file" onclick="switchEmailSubTab('file')" class="text-blue-400 border-b-2 border-blue-500 pb-1">
+                        📁 Upload .eml File
+                    </button>
+                    <button id="email-subtab-raw" onclick="switchEmailSubTab('raw')" class="text-slate-400 hover:text-white pb-1">
+                        📝 Paste Raw Email Text / Headers
+                    </button>
+                </div>
+
+                <!-- Upload .eml File Area -->
+                <div id="email-file-area" class="space-y-4">
+                    <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-blue-500/60 rounded-xl p-8 text-center bg-slate-900/50 hover:bg-slate-900/80 transition cursor-pointer" onclick="document.getElementById('input-file-eml').click()">
+                        <input id="input-file-eml" type="file" accept=".eml,.msg,.txt" class="hidden" onchange="handleFileSelected(event)">
+                        <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        </div>
+                        <p class="text-sm font-medium text-slate-200" id="file-chosen-text">Drag & drop your <span class="text-blue-400 font-mono">.eml</span> file here or <span class="text-blue-400 underline">browse files</span></p>
+                        <p class="text-xs text-slate-500 mt-1">Supports RFC 822 format (exported from Outlook, Thunderbird, Gmail, M365)</p>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button id="btn-triage-email" onclick="executeEmailTriage()" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 transition active:scale-95">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            <span>Run Email Triage</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Raw Email Text Area -->
+                <div id="email-raw-area" class="hidden space-y-4">
+                    <textarea id="input-raw-email" rows="8" placeholder="From: billing@acme.com&#10;To: victim@target.com&#10;Subject: Urgent Payment&#10;Authentication-Results: ...&#10;&#10;Please verify your account here: https://phishing-site.xyz"
+                              class="w-full p-4 bg-slate-900 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-inner"></textarea>
+                    <div class="flex justify-end">
+                        <button onclick="executeRawEmailTriage()" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 transition active:scale-95">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>Analyze Pasted Email</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOADING SPINNER INDICATOR -->
+            <div id="triage-loader" class="hidden py-12 text-center space-y-4">
+                <div class="inline-block relative w-16 h-16">
+                    <div class="w-16 h-16 rounded-full border-4 border-slate-800 border-t-blue-500 animate-spin"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-xl">🛡️</span>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-base font-semibold text-white" id="loader-title">Executing Deep Heuristic Inspection...</p>
+                    <p class="text-xs text-slate-400 font-mono" id="loader-subtitle">Evaluating Shannon entropy, WHOIS registry, DNS records & MITRE techniques</p>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- TRIAGE INVESTIGATION RESULTS (DYNAMICALLY POPULATED) -->
+            <!-- ============================================== -->
+            <div id="results-container" class="hidden space-y-6">
+
+                <!-- VERDICT HEADER & HERO SCORE CARD -->
+                <div id="hero-verdict-card" class="bg-[#111827] border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden transition-all duration-300">
+                    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                        
+                        <!-- Left: Target Info & Case Details -->
+                        <div class="space-y-3 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span id="res-badge-type" class="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/30">URL TRIAGE</span>
+                                <span class="text-slate-400 text-xs">Case ID:</span>
+                                <span id="res-case-id" class="font-mono text-xs text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">b696-17fc474ce4f6</span>
+                                <span id="res-timestamp" class="text-xs text-slate-400">2026-11-18 13:20 UTC</span>
+                            </div>
+
+                            <h1 id="res-target-summary" class="text-xl sm:text-2xl font-bold font-mono text-white break-all">
+                                https://login-micros0ft-security-portal.xyz/verify
+                            </h1>
+
+                            <div class="flex flex-wrap items-center gap-3 pt-1 no-print">
+                                <button onclick="copyAllCaseIocs()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition active:scale-95">
+                                    <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                                    Copy Defanged IOCs
+                                </button>
+                                <button onclick="printReport()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition active:scale-95">
+                                    <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                                    Print / Save PDF
+                                </button>
+                                <button onclick="downloadReportJson()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center gap-1.5 transition active:scale-95">
+                                    <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    Download JSON
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right: Visual Score Gauge & Verdict Badge -->
+                        <div class="flex items-center gap-6 bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shrink-0">
+                            <!-- Circular SVG Gauge -->
+                            <div class="relative w-28 h-28 flex items-center justify-center">
+                                <svg class="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="#1f2937" stroke-width="8"></circle>
+                                    <circle id="gauge-circle" cx="50" cy="50" r="40" fill="transparent" stroke="#ef4444" stroke-width="8" stroke-dasharray="251.2" stroke-dashoffset="50" stroke-linecap="round" class="transition-all duration-1000"></circle>
+                                </svg>
+                                <div class="absolute flex flex-col items-center justify-center">
+                                    <span id="res-score-number" class="text-3xl font-extrabold text-white">88</span>
+                                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">/ 100</span>
+                                </div>
+                            </div>
+
+                            <!-- Verdict Tag & Classification -->
+                            <div class="space-y-1.5 text-left">
+                                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">Threat Classification</span>
+                                <div id="res-verdict-pill" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold text-sm bg-red-500/20 text-red-400 border border-red-500/40 shadow-lg shadow-red-500/10">
+                                    <span class="w-2 h-2 rounded-full bg-red-500 pulse-dot"></span>
+                                    <span id="res-verdict-text">HIGH RISK / PHISHING</span>
+                                </div>
+                                <p id="res-verdict-desc" class="text-xs text-slate-400 max-w-xs">Immediate containment recommended. High confidence malicious indicators detected.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- SOC TIER-1 RECOMMENDED PLAYBOOK ACTIONS -->
+                <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2 mb-3">
+                        <span class="text-lg">📋</span> Tier-1 SOC Incident Containment Playbook
+                    </h3>
+                    <div id="res-playbook-list" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- Injected playbook cards -->
+                    </div>
+                </div>
+
+                <!-- EMAIL SPECIFIC AUDIT SECTION (Visible only for email analysis) -->
+                <div id="email-triage-details" class="hidden space-y-6">
+                    <!-- Email Authentication & Spoofing Summary -->
+                    <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span class="text-lg">✉️</span> Email Authentication & Spoofing Verification
+                        </h3>
+
+                        <!-- Badges Grid -->
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <!-- SPF -->
+                            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-semibold text-slate-400 uppercase">SPF Policy</span>
+                                    <span id="email-spf-badge" class="px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30">FAIL</span>
+                                </div>
+                                <p id="email-spf-details" class="text-xs text-slate-400 truncate">IP not designated by sending domain</p>
+                            </div>
+                            <!-- DKIM -->
+                            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-semibold text-slate-400 uppercase">DKIM Signature</span>
+                                    <span id="email-dkim-badge" class="px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30">FAIL</span>
+                                </div>
+                                <p id="email-dkim-details" class="text-xs text-slate-400 truncate">Cryptographic signature verification failed</p>
+                            </div>
+                            <!-- DMARC -->
+                            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-semibold text-slate-400 uppercase">DMARC Alignment</span>
+                                    <span id="email-dmarc-badge" class="px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30">FAIL</span>
+                                </div>
+                                <p id="email-dmarc-details" class="text-xs text-slate-400 truncate">Domain alignment failed (p=reject)</p>
+                            </div>
+                        </div>
+
+                        <!-- Header Audit Table -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-800 text-slate-300 font-semibold border-b border-slate-700">
+                                        <th class="p-3 w-40">Header Field</th>
+                                        <th class="p-3">Extracted Value</th>
+                                        <th class="p-3 w-36">Triage Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="email-headers-table-body" class="divide-y divide-slate-800 font-mono">
+                                    <!-- Dynamic rows -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Attachments Table -->
+                        <div class="space-y-2 pt-2">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">Extracted Attachments</h4>
+                            <div id="email-attachments-list" class="space-y-2">
+                                <!-- Dynamic attachment cards -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2-COLUMN INTELLIGENCE GRID: HEURISTICS BREAKDOWN & INFRASTRUCTURE INTEL -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- COL 1: EXPLAINABLE THREAT HEURISTICS BREAKDOWN -->
+                    <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                <span class="text-lg">⚖️</span> Explainable Risk Scoring
+                            </h3>
+                            <span id="res-heuristics-count" class="text-xs bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full font-semibold">5 Triggers</span>
+                        </div>
+                        <div class="overflow-y-auto max-h-[440px] space-y-2.5 pr-1" id="res-score-breakdown-list">
+                            <!-- Dynamic heuristics list -->
+                        </div>
+                    </div>
+
+                    <!-- COL 2: DOMAIN & INFRASTRUCTURE INTELLIGENCE (WHOIS, DNS, SSL) -->
+                    <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                <span class="text-lg">🌐</span> Domain & Infrastructure Intelligence
+                            </h3>
+                            <span class="text-xs text-slate-400 font-mono">WHOIS & DNS Query</span>
+                        </div>
+
+                        <div class="space-y-3.5 text-xs">
+                            <!-- WHOIS Age Card -->
+                            <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-semibold text-slate-300">Domain Registration (WHOIS)</span>
+                                    <span id="whois-nrd-badge" class="px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30">NRD (< 30 days)</span>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono">
+                                    <div><span class="text-slate-500 block">Registrar:</span><span id="whois-registrar" class="text-slate-200 truncate block">NameCheap Inc.</span></div>
+                                    <div><span class="text-slate-500 block">Created:</span><span id="whois-created" class="text-slate-200 block">2026-11-14</span></div>
+                                    <div><span class="text-slate-500 block">Domain Age:</span><span id="whois-age" class="text-red-400 font-bold block">4 Days</span></div>
+                                </div>
+                            </div>
+
+                            <!-- DNS Records Card -->
+                            <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                                <span class="font-semibold text-slate-300 block">DNS Infrastructure</span>
+                                <div class="space-y-1.5 font-mono text-[11px]">
+                                    <div class="flex"><span class="text-slate-500 w-16">A:</span><span id="dns-rec-a" class="text-slate-200">198.51.100.88</span></div>
+                                    <div class="flex"><span class="text-slate-500 w-16">MX:</span><span id="dns-rec-mx" class="text-slate-200 italic text-slate-500">None</span></div>
+                                    <div class="flex"><span class="text-slate-500 w-16">TXT:</span><span id="dns-rec-txt" class="text-slate-200 truncate">v=spf1 -all</span></div>
+                                    <div class="flex"><span class="text-slate-500 w-16">NS:</span><span id="dns-rec-ns" class="text-slate-200 truncate">ns1.offshore-dns-bulletproof.top</span></div>
+                                </div>
+                            </div>
+
+                            <!-- SSL Certificate & Page Inspection -->
+                            <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                                <span class="font-semibold text-slate-300 block">SSL / TLS & Page Inspection</span>
+                                <div class="grid grid-cols-2 gap-2 font-mono text-[11px]">
+                                    <div><span class="text-slate-500 block">Issuer:</span><span id="ssl-issuer" class="text-slate-200 truncate block">Let's Encrypt</span></div>
+                                    <div><span class="text-slate-500 block">Form Actions:</span><span id="page-form-action" class="text-red-400 truncate block">External Drop Target</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- MITRE ATT&CK MAPPING MATRIX SECTION -->
+                <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div>
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                <span class="text-lg">🎯</span> MITRE ATT&CK Framework Mapping
+                            </h3>
+                            <p class="text-xs text-slate-400">Automated mapping of detected phishing heuristics to enterprise adversary tactics & techniques</p>
+                        </div>
+                        <a href="https://attack.mitre.org/" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1">
+                            MITRE Matrix ↗
+                        </a>
+                    </div>
+
+                    <div id="res-mitre-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Dynamic MITRE cards -->
+                    </div>
+                </div>
+
+                <!-- DEFANGED INDICATORS OF COMPROMISE (IOCs) EXPORT SECTION -->
+                <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
+                        <div>
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                <span class="text-lg">🛡️</span> Defanged Indicators of Compromise (IOCs)
+                            </h3>
+                            <p class="text-xs text-slate-400">Sanitized observables ready for ingest into EDR, SIEM, or perimeter firewall blocklists</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="copyAllCaseIocs()" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white flex items-center gap-1 transition">
+                                📋 Copy All IOCs
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-slate-800/80 text-slate-300 font-semibold border-b border-slate-700">
+                                    <th class="p-3 w-32">Observable Type</th>
+                                    <th class="p-3">Defanged Value</th>
+                                    <th class="p-3">Context / Location</th>
+                                    <th class="p-3 w-20 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="res-iocs-table-body" class="divide-y divide-slate-800 font-mono">
+                                <!-- Dynamic IOC rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- ============================================== -->
+        <!-- TAB 2: INVESTIGATION CASE HISTORY               -->
+        <!-- ============================================== -->
+        <section id="view-history" class="hidden space-y-6">
+            <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                            SOC Triage Audit Log & Investigation History
+                        </h2>
+                        <p class="text-xs text-slate-400">Searchable repository of all analyzed URLs and email triage cases stored in local SQLite</p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="loadHistoryTable()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition">
+                            🔄 Refresh
+                        </button>
+                        <button onclick="confirmClearHistory()" class="px-3.5 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 text-xs font-semibold transition">
+                            Clear Audit Log
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filters & Search Bar -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex-1 min-w-[240px]">
+                        <input id="history-search-input" type="text" placeholder="Search target URL, subject, or Case ID..." oninput="filterHistoryTable()"
+                               class="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    </div>
+                    <select id="history-filter-verdict" onchange="loadHistoryTable()" class="bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none">
+                        <option value="ALL">All Verdicts</option>
+                        <option value="HIGH RISK / PHISHING">High Risk / Phishing</option>
+                        <option value="SUSPICIOUS">Suspicious</option>
+                        <option value="SAFE">Safe</option>
+                    </select>
+                    <select id="history-filter-type" onchange="loadHistoryTable()" class="bg-slate-900 border border-slate-700 text-slate-300 rounded-lg px-3 py-2 text-xs focus:outline-none">
+                        <option value="ALL">All Types</option>
+                        <option value="URL">URL</option>
+                        <option value="EMAIL">Email</option>
+                    </select>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto rounded-xl border border-slate-800">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800/80 text-slate-300 font-semibold border-b border-slate-700">
+                                <th class="p-3 w-40">Timestamp</th>
+                                <th class="p-3 w-24">Type</th>
+                                <th class="p-3">Target Investigated</th>
+                                <th class="p-3 w-24 text-center">Score</th>
+                                <th class="p-3 w-36">Verdict</th>
+                                <th class="p-3 w-28 text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body" class="divide-y divide-slate-800">
+                            <!-- Injected rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- TAB 3: AGGREGATED IOC BLOCKLIST EXPORT         -->
+        <!-- ============================================== -->
+        <section id="view-iocs" class="hidden space-y-6">
+            <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                            Aggregated IOC Blocklist Feed
+                        </h2>
+                        <p class="text-xs text-slate-400">All defanged indicators harvested across triage investigations ready for perimeter push</p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="copyAllAggregatedIocs()" class="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition">
+                            📋 Copy Plaintext Blocklist
+                        </button>
+                        <button onclick="downloadIocsJson()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition">
+                            💾 Export JSON
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-xl border border-slate-800">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800/80 text-slate-300 font-semibold border-b border-slate-700">
+                                <th class="p-3 w-36">Type</th>
+                                <th class="p-3">Defanged Value</th>
+                                <th class="p-3 w-32">Threat Level</th>
+                                <th class="p-3">Context</th>
+                                <th class="p-3 w-20 text-center">Copy</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aggregated-iocs-table-body" class="divide-y divide-slate-800 font-mono">
+                            <!-- Dynamic rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- TAB 4: MITRE ATT&CK FRAMEWORK MATRIX           -->
+        <!-- ============================================== -->
+        <section id="view-mitre" class="hidden space-y-6">
+            <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                        MITRE ATT&CK Enterprise Matrix Integration
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">
+                        PHISH-SHIELD maps automated URL and email triage heuristics to the MITRE ATT&CK knowledge base to support SOC Tier-1 analysts with adversary attribution and defensive alignment.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- T1566.002 -->
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">T1566.002</span>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase">Initial Access</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white">Spearphishing Link</h4>
+                        <p class="text-xs text-slate-400">Adversaries send targeted emails with malicious links to lure victims into visiting sites designed to harvest credentials or execute drive-by payloads.</p>
+                        <div class="pt-1 text-[11px] text-blue-400 font-mono">Triggers: Deceptive hyperlinks, Lookalike domains, High-risk TLDs</div>
+                    </div>
+
+                    <!-- T1566.001 -->
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">T1566.001</span>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase">Initial Access</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white">Spearphishing Attachment</h4>
+                        <p class="text-xs text-slate-400">Adversaries attach weaponized files (.iso, .lnk, .exe, .html) disguised as legitimate documents to gain code execution upon user interaction.</p>
+                        <div class="pt-1 text-[11px] text-blue-400 font-mono">Triggers: Dangerous file extensions, Double extensions, MOTW bypass containers</div>
+                    </div>
+
+                    <!-- T1583.001 -->
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">T1583.001</span>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase">Resource Development</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white">Acquire Infrastructure: Domains</h4>
+                        <p class="text-xs text-slate-400">Adversaries register lookalike domains, acquire newly registered domains (NRDs), and establish DNS records to conduct phishing campaigns.</p>
+                        <div class="pt-1 text-[11px] text-blue-400 font-mono">Triggers: Domain age < 30 days (NRD), Spamhaus abused TLDs, Fast-flux DNS</div>
+                    </div>
+
+                    <!-- T1036 -->
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">T1036</span>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase">Defense Evasion</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white">Masquerading / Typosquatting</h4>
+                        <p class="text-xs text-slate-400">Manipulating features of domain names, sender names, or page titles to mimic legitimate, trusted brands (Microsoft, Google, PayPal, Banks).</p>
+                        <div class="pt-1 text-[11px] text-blue-400 font-mono">Triggers: Levenshtein distance typosquatting, Cyrillic IDN homoglyphs, Punycode (xn--)</div>
+                    </div>
+
+                    <!-- T1556 -->
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">T1556</span>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase">Credential Access</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white">Modify Authentication Process / Harvesting</h4>
+                        <p class="text-xs text-slate-400">Adversaries deploy fake login portals with HTML password inputs that exfiltrate entered user credentials to offshore drop servers.</p>
+                        <div class="pt-1 text-[11px] text-blue-400 font-mono">Triggers: Password input posting to external/mismatched action URL</div>
+                    </div>
+
+                    <!-- T1566.003 -->
+                    <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">T1566.003</span>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase">Initial Access</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white">Spearphishing via Service</h4>
+                        <p class="text-xs text-slate-400">Leveraging compromised or spoofed email relay services with invalid SPF and DMARC alignments to impersonate trusted corporate entities.</p>
+                        <div class="pt-1 text-[11px] text-blue-400 font-mono">Triggers: SPF fail/softfail, DKIM failure, DMARC alignment failure</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- TAB 5: SOC TIER-1 SOP PLAYBOOK GUIDE          -->
+        <!-- ============================================== -->
+        <section id="view-sop" class="hidden space-y-6">
+            <div class="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        SOC Tier-1 Phishing Triage Standard Operating Procedure (SOP)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Operational guide for Tier-1 analysts conducting first-response phishing email and suspicious URL triage.
+                    </p>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="border-l-4 border-blue-500 pl-4 py-1">
+                        <h4 class="text-sm font-bold text-white">Step 1: Ingestion & Defanging</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Never click raw URLs or open attachments on non-isolated host machines. Always ensure URLs and IPs are defanged (<code class="text-blue-400 font-mono">hxxps://</code>, <code class="text-blue-400 font-mono">[.]</code>) before sharing in ticketing systems or chat channels.</p>
+                    </div>
+
+                    <div class="border-l-4 border-amber-500 pl-4 py-1">
+                        <h4 class="text-sm font-bold text-white">Step 2: Lexical & Authentication Validation</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Verify SPF, DKIM, and DMARC headers. Cross-reference the visual Header From address with the technical Return-Path and Reply-To envelopes. Check for newly registered domains (NRDs < 30 days old) and brand lookalikes.</p>
+                    </div>
+
+                    <div class="border-l-4 border-purple-500 pl-4 py-1">
+                        <h4 class="text-sm font-bold text-white">Step 3: Determine Severity & Escalation</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            • <strong class="text-emerald-400">Score 0–29 (Safe):</strong> Close alert with resolution notes.<br>
+                            • <strong class="text-amber-400">Score 30–59 (Suspicious):</strong> Place on watch; verify with sender through out-of-band communication.<br>
+                            • <strong class="text-red-400">Score 60–100 (High Risk / Phishing):</strong> Initiate containment playbook immediately.
+                        </p>
+                    </div>
+
+                    <div class="border-l-4 border-red-500 pl-4 py-1">
+                        <h4 class="text-sm font-bold text-white">Step 4: Containment & Remediation</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">1) Block domain/URL on perimeter firewalls and web proxies. 2) Execute tenant-wide message trace and hard-purge the malicious email from all recipient inboxes. 3) For any user who clicked or entered credentials, reset password, revoke active sessions, and verify MFA tokens.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="no-print mt-auto border-t border-slate-800 bg-[#0f172a] py-4 px-4 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>PHISH-SHIELD SOC Tier-1 Triage Tool • Built for Internship Evaluation</span>
+            <span class="font-mono text-[11px] text-slate-400">FastAPI • SQLite • MITRE ATT&CK Mapping</span>
+        </div>
+    </footer>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform transition-all duration-300 translate-y-20 opacity-0 pointer-events-none bg-slate-800 text-white border border-slate-700 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-sm font-medium">
+        <span id="toast-icon">✅</span>
+        <span id="toast-msg">IOCs copied to clipboard!</span>
+    </div>
+
+    <!-- JAVASCRIPT APPLICATION LOGIC -->
+    <script>
+        let currentReport = null;
+        let selectedFile = null;
+
+        // Navigation Tabs Controller
+        function switchMainTab(tabId) {
+            const tabs = ['triage', 'history', 'iocs', 'mitre', 'sop'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`nav-tab-${t}`);
+                const view = document.getElementById(`view-${t}`);
+                if (t === tabId) {
+                    btn.className = "px-3.5 py-1.5 rounded-md bg-blue-600 text-white shadow-sm flex items-center gap-1.5 transition";
+                    view.classList.remove('hidden');
+                } else {
+                    btn.className = "px-3.5 py-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 flex items-center gap-1.5 transition";
+                    view.classList.add('hidden');
+                }
+            });
+
+            if (tabId === 'history') loadHistoryTable();
+            if (tabId === 'iocs') loadAggregatedIocsTable();
+        }
+
+        // Intake Mode Controller (URL vs Email)
+        function switchIntakeMode(mode) {
+            const btnUrl = document.getElementById('intake-mode-url');
+            const btnEmail = document.getElementById('intake-mode-email');
+            const panelUrl = document.getElementById('panel-url-intake');
+            const panelEmail = document.getElementById('panel-email-intake');
+
+            if (mode === 'url') {
+                btnUrl.className = "flex-1 py-3 px-4 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/40 font-semibold text-sm flex items-center justify-center gap-2 transition";
+                btnEmail.className = "flex-1 py-3 px-4 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 font-semibold text-sm flex items-center justify-center gap-2 transition";
+                panelUrl.classList.remove('hidden');
+                panelEmail.classList.add('hidden');
+            } else {
+                btnEmail.className = "flex-1 py-3 px-4 rounded-lg bg-purple-600/20 text-purple-400 border border-purple-500/40 font-semibold text-sm flex items-center justify-center gap-2 transition";
+                btnUrl.className = "flex-1 py-3 px-4 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 font-semibold text-sm flex items-center justify-center gap-2 transition";
+                panelEmail.classList.remove('hidden');
+                panelUrl.classList.add('hidden');
+            }
+        }
+
+        // Email Subtab Controller (File Upload vs Raw Paste)
+        function switchEmailSubTab(sub) {
+            const btnFile = document.getElementById('email-subtab-file');
+            const btnRaw = document.getElementById('email-subtab-raw');
+            const areaFile = document.getElementById('email-file-area');
+            const areaRaw = document.getElementById('email-raw-area');
+
+            if (sub === 'file') {
+                btnFile.className = "text-blue-400 border-b-2 border-blue-500 pb-1";
+                btnRaw.className = "text-slate-400 hover:text-white pb-1";
+                areaFile.classList.remove('hidden');
+                areaRaw.classList.add('hidden');
+            } else {
+                btnRaw.className = "text-purple-400 border-b-2 border-purple-500 pb-1";
+                btnFile.className = "text-slate-400 hover:text-white pb-1";
+                areaRaw.classList.remove('hidden');
+                areaFile.classList.add('hidden');
+            }
+        }
+
+        // Quick URL Samples Loader
+        function loadSampleUrl(type) {
+            const input = document.getElementById('input-target-url');
+            if (type === 'phish') {
+                input.value = "https://login-micros0ft-security-portal.xyz/verify?session=abc123";
+            } else if (type === 'punycode') {
+                input.value = "http://xn--paypl-qqa.com/signin/webapps/mpp/home";
+            } else if (type === 'ip') {
+                input.value = "http://198.51.100.42:8080/invoices/Invoice_OVERDUE_9482.iso";
+            } else if (type === 'benign') {
+                input.value = "https://www.google.com/search?q=cybersecurity+threat+intel";
+            }
+            showToast("ℹ️", `Loaded ${type} demo sample`);
+        }
+
+        function clearUrlInput() {
+            document.getElementById('input-target-url').value = '';
+        }
+
+        // Quick Email Samples Loader
+        async function loadSampleEmail(type) {
+            switchIntakeMode('email');
+            switchEmailSubTab('file');
+            const filename = type === 'phish' ? 'phishing_credential.eml' : 'legitimate_invoice.eml';
+            try {
+                const resp = await fetch(`/samples/${filename}`);
+                if (!resp.ok) throw new Error("Could not fetch sample");
+                const blob = await resp.blob();
+                selectedFile = new File([blob], filename, { type: 'message/rfc822' });
+                document.getElementById('file-chosen-text').innerHTML = `Selected sample: <strong class="text-purple-400 font-mono">${filename}</strong> (${(selectedFile.size/1024).toFixed(1)} KB)`;
+                showToast("✉️", `Loaded demo sample: ${filename}`);
+            } catch (err) {
+                showToast("⚠️", "Error loading sample file");
+            }
+        }
+
+        function handleFileSelected(event) {
+            if (event.target.files.length > 0) {
+                selectedFile = event.target.files[0];
+                document.getElementById('file-chosen-text').innerHTML = `Selected file: <strong class="text-blue-400 font-mono">${selectedFile.name}</strong> (${(selectedFile.size/1024).toFixed(1)} KB)`;
+            }
+        }
+
+        // Drag & drop support
+        const dropZone = document.getElementById('drop-zone');
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500'); }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.remove('border-blue-500'); }, false);
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            if (dt.files.length > 0) {
+                selectedFile = dt.files[0];
+                document.getElementById('file-chosen-text').innerHTML = `Selected file: <strong class="text-blue-400 font-mono">${selectedFile.name}</strong> (${(selectedFile.size/1024).toFixed(1)} KB)`;
+            }
+        });
+
+        // Run URL Triage Execution
+        async function executeUrlTriage() {
+            const url = document.getElementById('input-target-url').value.trim();
+            if (!url) {
+                showToast("⚠️", "Please enter a URL to inspect");
+                return;
+            }
+            const enableNet = document.getElementById('check-network-inspection').checked;
+
+            showLoader("Analyzing Malicious URL...", "Running lexical entropy, homograph checks, WHOIS & safe page probes");
+            try {
+                const resp = await fetch('/analyze/url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, enable_network_inspection: enableNet })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || "URL Triage failed");
+                }
+                const report = await resp.json();
+                renderReport(report);
+            } catch (err) {
+                hideLoader();
+                showToast("❌", err.message);
+            }
+        }
+
+        // Run Email Triage Execution
+        async function executeEmailTriage() {
+            if (!selectedFile) {
+                showToast("⚠️", "Please select or drag an .eml file to inspect");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            showLoader("Analyzing Phishing Email...", "Inspecting RFC 822 headers, SPF/DKIM/DMARC records, attachments & URLs");
+            try {
+                const resp = await fetch('/analyze/email', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || "Email Triage failed");
+                }
+                const report = await resp.json();
+                renderReport(report);
+            } catch (err) {
+                hideLoader();
+                showToast("❌", err.message);
+            }
+        }
+
+        // Run Raw Email Text Execution
+        async function executeRawEmailTriage() {
+            const raw = document.getElementById('input-raw-email').value.trim();
+            if (!raw) {
+                showToast("⚠️", "Please paste raw email headers or content");
+                return;
+            }
+
+            showLoader("Analyzing Raw Email...", "Parsing headers, authentication verdicts, sender domain & embedded links");
+            try {
+                const resp = await fetch('/analyze/email/raw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ raw_email: raw })
+                });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail || "Email analysis failed");
+                }
+                const report = await resp.json();
+                renderReport(report);
+            } catch (err) {
+                hideLoader();
+                showToast("❌", err.message);
+            }
+        }
+
+        function showLoader(title, subtitle) {
+            document.getElementById('loader-title').textContent = title;
+            document.getElementById('loader-subtitle').textContent = subtitle;
+            document.getElementById('triage-loader').classList.remove('hidden');
+            document.getElementById('results-container').classList.add('hidden');
+        }
+
+        function hideLoader() {
+            document.getElementById('triage-loader').classList.add('hidden');
+        }
+
+        // Render Comprehensive Triage Report
+        function renderReport(report) {
+            currentReport = report;
+            hideLoader();
+            const container = document.getElementById('results-container');
+            container.classList.remove('hidden');
+
+            // 1. Meta / Case header
+            document.getElementById('res-badge-type').textContent = `${report.analysis_type} TRIAGE`;
+            document.getElementById('res-case-id').textContent = report.case_id.substring(0, 18) + '...';
+            document.getElementById('res-case-id').title = report.case_id;
+            document.getElementById('res-timestamp').textContent = new Date(report.timestamp).toLocaleString();
+            document.getElementById('res-target-summary').textContent = report.target_summary;
+
+            // 2. Score & Verdict Gauge
+            const score = report.threat_score;
+            document.getElementById('res-score-number').textContent = score;
+
+            // SVG circle dashoffset calculation (circumference = 2 * PI * 40 = 251.2)
+            const circumference = 251.2;
+            const offset = circumference - (score / 100) * circumference;
+            const gaugeCircle = document.getElementById('gauge-circle');
+            gaugeCircle.style.strokeDashoffset = offset;
+
+            const verdictPill = document.getElementById('res-verdict-pill');
+            const verdictText = document.getElementById('res-verdict-text');
+            const verdictDesc = document.getElementById('res-verdict-desc');
+            const verdict = report.threat_verdict.toUpperCase();
+
+            verdictText.textContent = verdict;
+            if (verdict.includes('HIGH') || verdict.includes('PHISH')) {
+                gaugeCircle.setAttribute('stroke', '#ef4444');
+                verdictPill.className = "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold text-sm bg-red-500/20 text-red-400 border border-red-500/40 shadow-lg shadow-red-500/10";
+                verdictDesc.textContent = "High confidence malicious threat detected. Immediate containment actions required.";
+            } else if (verdict.includes('SUSPICIOUS')) {
+                gaugeCircle.setAttribute('stroke', '#f59e0b');
+                verdictPill.className = "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold text-sm bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-lg shadow-amber-500/10";
+                verdictDesc.textContent = "Anomalies detected. Threat indicators exceed baseline tolerance; further analyst scrutiny required.";
+            } else {
+                gaugeCircle.setAttribute('stroke', '#10b981');
+                verdictPill.className = "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold text-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-lg shadow-emerald-500/10";
+                verdictDesc.textContent = "No significant malicious indicators identified. Verified legitimate domain/message structure.";
+            }
+
+            // 3. Playbook actions
+            const playbookList = document.getElementById('res-playbook-list');
+            playbookList.innerHTML = '';
+            (report.playbook_actions || []).forEach(act => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 flex items-start gap-3";
+                card.innerHTML = `
+                    <div class="mt-0.5 text-blue-400 font-bold text-sm">▶</div>
+                    <div class="space-y-0.5">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-white">${act.action}</span>
+                            <span class="text-[10px] uppercase font-semibold px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700">${act.team}</span>
+                        </div>
+                        <p class="text-xs text-slate-400">${act.details}</p>
+                    </div>
+                `;
+                playbookList.appendChild(card);
+            });
+
+            // 4. Email Specific Section (if applicable)
+            const emailSection = document.getElementById('email-triage-details');
+            if (report.analysis_type === 'EMAIL' && report.details && report.details.email) {
+                emailSection.classList.remove('hidden');
+                const em = report.details.email;
+                const auth = em.authentication || {};
+
+                // SPF badge
+                const spfStatus = (auth.spf && auth.spf.status) || 'none';
+                renderAuthBadge('email-spf-badge', spfStatus);
+                document.getElementById('email-spf-details').textContent = (auth.spf && auth.spf.details) || 'No SPF record found';
+
+                // DKIM badge
+                const dkimStatus = (auth.dkim && auth.dkim.status) || 'none';
+                renderAuthBadge('email-dkim-badge', dkimStatus);
+                document.getElementById('email-dkim-details').textContent = (auth.dkim && auth.dkim.details) || 'No DKIM signature found';
+
+                // DMARC badge
+                const dmarcStatus = (auth.dmarc && auth.dmarc.status) || 'none';
+                renderAuthBadge('email-dmarc-badge', dmarcStatus);
+                document.getElementById('email-dmarc-details').textContent = (auth.dmarc && auth.dmarc.details) || 'No DMARC policy found';
+
+                // Headers table
+                const hBody = document.getElementById('email-headers-table-body');
+                hBody.innerHTML = '';
+                const hdrs = em.headers || {};
+                const checkRows = [
+                    { name: 'From', val: `${hdrs.from_raw || 'N/A'}` },
+                    { name: 'Reply-To', val: `${hdrs.reply_to_raw || 'Same as From'}` },
+                    { name: 'Return-Path', val: `${hdrs.return_path_raw || 'N/A'}` },
+                    { name: 'Originating-IP', val: `${hdrs.originating_ip || 'Not specified'}` },
+                    { name: 'Subject', val: `${hdrs.subject || '(No Subject)'}` },
+                    { name: 'Date', val: `${hdrs.date || 'N/A'}` }
+                ];
+                checkRows.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-800/40";
+                    tr.innerHTML = `
+                        <td class="p-3 text-slate-400 font-semibold">${r.name}</td>
+                        <td class="p-3 text-slate-200 break-all">${r.val}</td>
+                        <td class="p-3"><span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">Audited</span></td>
+                    `;
+                    hBody.appendChild(tr);
+                });
+
+                // Attachments
+                const attList = document.getElementById('email-attachments-list');
+                attList.innerHTML = '';
+                if (em.attachments && em.attachments.length > 0) {
+                    em.attachments.forEach(att => {
+                        const div = document.createElement('div');
+                        div.className = "bg-slate-900/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs";
+                        const isDang = att.is_dangerous;
+                        div.innerHTML = `
+                            <div class="flex items-center gap-3">
+                                <span class="text-xl">${isDang ? '⚠️' : '📎'}</span>
+                                <div>
+                                    <span class="font-mono font-bold ${isDang ? 'text-red-400' : 'text-slate-200'}">${att.filename}</span>
+                                    <span class="text-slate-500 text-[11px] block">Size: ${(att.size_bytes/1024).toFixed(1)} KB | SHA256: ${att.sha256 ? att.sha256.substring(0, 16) + '...' : 'N/A'}</span>
+                                </div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase ${isDang ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400'}">${isDang ? 'HIGH RISK EXTENSION' : 'CLEAN'}</span>
+                        `;
+                        attList.appendChild(div);
+                    });
+                } else {
+                    attList.innerHTML = '<p class="text-xs text-slate-500 italic">No file attachments detected in message.</p>';
+                }
+
+            } else {
+                emailSection.classList.add('hidden');
+            }
+
+            // 5. Score breakdown heuristics
+            const breakdownList = document.getElementById('res-score-breakdown-list');
+            breakdownList.innerHTML = '';
+            const breakdown = report.score_breakdown || [];
+            document.getElementById('res-heuristics-count').textContent = `${breakdown.length} Triggers`;
+
+            if (breakdown.length === 0) {
+                breakdownList.innerHTML = '<p class="text-xs text-emerald-400 italic p-4 bg-slate-900 rounded-xl">No adverse heuristics triggered. Target URL/Email passed all checks.</p>';
+            } else {
+                breakdown.forEach(ind => {
+                    const row = document.createElement('div');
+                    row.className = "bg-slate-900/80 p-3 rounded-xl border border-slate-800/80 flex items-start justify-between gap-3";
+                    const isHigh = ind.weight >= 20;
+                    row.innerHTML = `
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${ind.category}</span>
+                                <span class="text-xs font-mono font-semibold text-slate-200">${ind.key}</span>
+                            </div>
+                            <p class="text-xs text-slate-400">${ind.description}</p>
+                        </div>
+                        <span class="text-xs font-mono font-bold px-2 py-1 rounded shrink-0 ${isHigh ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}">+${ind.weight} pts</span>
+                    `;
+                    breakdownList.appendChild(row);
+                });
+            }
+
+            // 6. Domain & Infrastructure cards
+            const whois = (report.details && report.details.whois) || {};
+            const dns = (report.details && report.details.dns) || {};
+            const net = (report.details && report.details.network) || {};
+
+            document.getElementById('whois-registrar').textContent = whois.registrar || 'N/A';
+            document.getElementById('whois-created').textContent = whois.creation_date || 'N/A';
+            const ageDays = whois.domain_age_days !== undefined && whois.domain_age_days !== null ? `${whois.domain_age_days} Days` : 'N/A';
+            const whoisAgeEl = document.getElementById('whois-age');
+            whoisAgeEl.textContent = ageDays;
+            if (whois.is_nrd) {
+                whoisAgeEl.className = "text-red-400 font-bold block";
+                document.getElementById('whois-nrd-badge').classList.remove('hidden');
+            } else {
+                whoisAgeEl.className = "text-slate-200 font-bold block";
+                document.getElementById('whois-nrd-badge').classList.add('hidden');
+            }
+
+            const dnsRecs = dns.records || {};
+            document.getElementById('dns-rec-a').textContent = (dnsRecs.A && dnsRecs.A.join(', ')) || 'N/A';
+            document.getElementById('dns-rec-mx').textContent = (dnsRecs.MX && dnsRecs.MX.join(', ')) || 'None (No MX configured)';
+            document.getElementById('dns-rec-txt').textContent = (dnsRecs.TXT && dnsRecs.TXT.join(' | ')) || 'None';
+            document.getElementById('dns-rec-ns').textContent = (dnsRecs.NS && dnsRecs.NS.join(', ')) || 'None';
+
+            const ssl = net.ssl || {};
+            document.getElementById('ssl-issuer').textContent = ssl.issuer || (net.is_live === false ? 'Simulated Offline Mock' : 'None / HTTP');
+            
+            // Page Form Action summary
+            const forms = net.forms || [];
+            const formActionEl = document.getElementById('page-form-action');
+            if (forms.length > 0 && forms.some(f => f.is_external && f.has_password)) {
+                formActionEl.textContent = "Ext Credential Form";
+                formActionEl.className = "text-red-400 font-bold truncate block";
+            } else if (forms.length > 0) {
+                formActionEl.textContent = `${forms.length} internal form(s)`;
+                formActionEl.className = "text-slate-300 truncate block";
+            } else {
+                formActionEl.textContent = "None detected";
+                formActionEl.className = "text-slate-500 truncate block";
+            }
+
+            // 7. MITRE ATT&CK Matrix Cards
+            const mitreGrid = document.getElementById('res-mitre-grid');
+            mitreGrid.innerHTML = '';
+            const mitre = report.mitre_mapping || [];
+            if (mitre.length === 0) {
+                mitreGrid.innerHTML = '<p class="text-xs text-slate-500 italic col-span-3">No specific MITRE ATT&CK techniques matched.</p>';
+            } else {
+                mitre.forEach(m => {
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2";
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">${m.id}</span>
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase">${m.tactic}</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-white">${m.name}</h4>
+                        <p class="text-xs text-slate-400">${m.description}</p>
+                        <div class="pt-1 flex flex-wrap gap-1">
+                            ${(m.triggers || []).map(t => `<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">${t}</span>`).join('')}
+                        </div>
+                    `;
+                    mitreGrid.appendChild(card);
+                });
+            }
+
+            // 8. IOCs Table
+            const iocBody = document.getElementById('res-iocs-table-body');
+            iocBody.innerHTML = '';
+            (report.iocs || []).forEach(ioc => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/40";
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-400 font-semibold">${ioc.ioc_type}</td>
+                    <td class="p-3 text-blue-400 font-mono break-all select-all">${ioc.defanged_value}</td>
+                    <td class="p-3 text-slate-400 text-xs">${ioc.context || 'Observable'}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="copyText('${ioc.defanged_value}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
+                            Copy
+                        </button>
+                    </td>
+                `;
+                iocBody.appendChild(tr);
+            });
+
+            // Smooth scroll down to results
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function renderAuthBadge(elementId, status) {
+            const el = document.getElementById(elementId);
+            const st = (status || '').toLowerCase();
+            el.textContent = st.toUpperCase();
+            if (st === 'pass') {
+                el.className = "px-2 py-0.5 rounded text-xs font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+            } else if (st === 'fail' || st === 'hardfail') {
+                el.className = "px-2 py-0.5 rounded text-xs font-bold uppercase bg-red-500/20 text-red-400 border border-red-500/30";
+            } else {
+                el.className = "px-2 py-0.5 rounded text-xs font-bold uppercase bg-amber-500/20 text-amber-400 border border-amber-500/30";
+            }
+        }
+
+        // ==============================================
+        // AUDIT LOG / HISTORY LOADER
+        // ==============================================
+        let allHistoryRecords = [];
+
+        async function loadHistoryTable() {
+            const verdict = document.getElementById('history-filter-verdict').value;
+            const type = document.getElementById('history-filter-type').value;
+            const search = document.getElementById('history-search-input').value.trim();
+
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">Loading audit log...</td></tr>';
+
+            try {
+                let url = `/history?limit=100&verdict=${encodeURIComponent(verdict)}&type=${encodeURIComponent(type)}`;
+                if (search) url += `&search=${encodeURIComponent(search)}`;
+                const resp = await fetch(url);
+                const records = await resp.json();
+                allHistoryRecords = records;
+                renderHistoryRows(records);
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-400">Failed to load history</td></tr>';
+            }
+        }
+
+        function filterHistoryTable() {
+            const term = document.getElementById('history-search-input').value.toLowerCase();
+            const filtered = allHistoryRecords.filter(r => 
+                (r.target_summary && r.target_summary.toLowerCase().includes(term)) ||
+                (r.id && r.id.toLowerCase().includes(term))
+            );
+            renderHistoryRows(filtered);
+        }
+
+        function renderHistoryRows(records) {
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = '';
+            if (records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500 italic">No investigation records found</td></tr>';
+                return;
+            }
+
+            records.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/40 border-b border-slate-800/80";
+                const isHigh = (row.threat_verdict || '').toLowerCase().includes('high');
+                const isSusp = (row.threat_verdict || '').toLowerCase().includes('suspicious');
+                const badgeClass = isHigh ? 'bg-red-500/20 text-red-400 border border-red-500/30' : (isSusp ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30');
+
+                tr.innerHTML = `
+                    <td class="p-3 text-slate-400 font-mono text-[11px]">${new Date(row.timestamp).toLocaleString()}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-800 text-slate-300">${row.analysis_type}</span></td>
+                    <td class="p-3 font-mono text-slate-200 truncate max-w-xs" title="${row.target_summary}">${row.target_summary}</td>
+                    <td class="p-3 text-center font-bold ${isHigh ? 'text-red-400' : (isSusp ? 'text-amber-400' : 'text-emerald-400')}">${row.threat_score}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase ${badgeClass}">${row.threat_verdict}</span></td>
+                    <td class="p-3 text-center">
+                        <button onclick="reopenReport('${row.id}')" class="px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-xs font-semibold border border-blue-500/30 transition">
+                            Reopen
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function reopenReport(caseId) {
+            showLoader("Retrieving Incident Record...", `Loading Case ${caseId} from SQLite database`);
+            switchMainTab('triage');
+            try {
+                const resp = await fetch(`/report/${caseId}`);
+                if (!resp.ok) throw new Error("Could not load case report");
+                const report = await resp.json();
+                renderReport(report);
+            } catch (err) {
+                hideLoader();
+                showToast("❌", err.message);
+            }
+        }
+
+        async function confirmClearHistory() {
+            if (!confirm("Are you sure you want to clear the entire SOC triage history and IOC database?")) return;
+            try {
+                await fetch('/history/clear', { method: 'POST' });
+                showToast("🗑️", "Audit log and IOC database purged");
+                loadHistoryTable();
+            } catch (err) {
+                showToast("❌", "Failed to clear history");
+            }
+        }
+
+        // ==============================================
+        // AGGREGATED IOC BLOCKLIST TABLE
+        // ==============================================
+        let allIocsList = [];
+
+        async function loadAggregatedIocsTable() {
+            const tbody = document.getElementById('aggregated-iocs-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Loading IOC blocklist...</td></tr>';
+
+            try {
+                const resp = await fetch('/iocs?limit=300');
+                allIocsList = await resp.json();
+                tbody.innerHTML = '';
+                if (allIocsList.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">No IOCs collected yet. Run a triage to harvest indicators.</td></tr>';
+                    return;
+                }
+
+                allIocsList.forEach(ioc => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-slate-800/40 border-b border-slate-800/80";
+                    const isHigh = (ioc.threat_level || '').toLowerCase().includes('high');
+                    tr.innerHTML = `
+                        <td class="p-3 text-slate-400">${ioc.ioc_type}</td>
+                        <td class="p-3 text-blue-400 font-mono break-all">${ioc.defanged_value}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${isHigh ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}">${ioc.threat_level}</span></td>
+                        <td class="p-3 text-slate-400 text-xs">${ioc.context || 'Observed in triage'}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="copyText('${ioc.defanged_value}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">Copy</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-400">Failed to load IOC blocklist</td></tr>';
+            }
+        }
+
+        function copyAllAggregatedIocs() {
+            if (!allIocsList || allIocsList.length === 0) {
+                showToast("⚠️", "No IOCs available to copy");
+                return;
+            }
+            const lines = allIocsList.map(i => `${i.defanged_value} # Type: ${i.ioc_type} [${i.threat_level}]`);
+            copyText(lines.join('\n'));
+            showToast("📋", `Copied ${allIocsList.length} defanged IOCs`);
+        }
+
+        function downloadIocsJson() {
+            if (!allIocsList || allIocsList.length === 0) {
+                showToast("⚠️", "No IOCs available to download");
+                return;
+            }
+            const blob = new Blob([JSON.stringify(allIocsList, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `soc-threat-iocs-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("💾", "Downloaded IOCs JSON file");
+        }
+
+        // ==============================================
+        // CASE EXPORT & HELPERS
+        // ==============================================
+        function copyAllCaseIocs() {
+            if (!currentReport || !currentReport.iocs) return;
+            const text = currentReport.iocs.map(i => `${i.ioc_type}: ${i.defanged_value} (${i.context || ''})`).join('\n');
+            copyText(text);
+            showToast("📋", "Copied case defanged IOCs to clipboard");
+        }
+
+        function downloadReportJson() {
+            if (!currentReport) return;
+            const blob = new Blob([JSON.stringify(currentReport, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `SOC-Report-${currentReport.case_id}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("💾", "Downloaded Incident Report JSON");
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        function copyText(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast("📋", "Copied to clipboard");
+            }).catch(() => {
+                showToast("⚠️", "Clipboard permission denied");
+            });
+        }
+
+        function showToast(icon, message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-icon').textContent = icon;
+            document.getElementById('toast-msg').textContent = message;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3000);
+        }
+
+        // Initialize with default demo URL for easy presentation evaluation
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSampleUrl('phish');
+        });
+    </script>
+</body>
+</html>
